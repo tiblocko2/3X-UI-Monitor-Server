@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  vpn-monitor:
+    build: .
+    container_name: vpn-monitor
+    restart: unless-stopped
+    network_mode: host   # чтобы видеть localhost:PORT (3X-UI)
+    environment:
+      - PORT=${PORT:-8080}
+      - XUI_URL=${XUI_URL}
+      - XUI_USER=${XUI_USER}
+      - XUI_PASS=${XUI_PASS}
+      - DASH_USER=${DASH_USER}
+      - DASH_PASS=${DASH_PASS}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - HTTPS_ENABLED=${HTTPS_ENABLED:-false}
+      - TLS_CERT=${TLS_CERT:-}
+      - TLS_KEY=${TLS_KEY:-}
+      - DATA_DIR=/var/lib/vpn-monitor
+      - RETENTION_DAYS=${RETENTION_DAYS:-30}
+    volumes:
+      - vpn-monitor-data:/var/lib/vpn-monitor
+    # Если не нужен host network — убрать network_mode и раскомментировать ports:
+    # ports:
+    #   - "${PORT:-8080}:8080"
+
+volumes:
+  vpn-monitor-data:

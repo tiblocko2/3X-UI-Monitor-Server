@@ -39,12 +39,15 @@ func New(cfg config.App, webFS fs.FS, dataStore *store.Store) *Server {
 	return s
 }
 
-// Run запускает HTTPS-сервер. Блокирует до завершения.
+// Run запускает HTTP или HTTPS сервер. Блокирует до завершения.
 func (s *Server) Run() error {
 	addr := fmt.Sprintf(":%s", s.cfg.Port)
-	log.Printf("[server] HTTPS listening on %s", addr)
+	if s.cfg.HTTPS {
+		log.Printf("[server] HTTPS listening on %s", addr)
+		return http.ListenAndServeTLS(addr, s.cfg.CertFile, s.cfg.KeyFile, s.router)
+	}
+	log.Printf("[server] HTTP listening on %s", addr)
 	return http.ListenAndServe(addr, s.router)
-	//return http.ListenAndServeTLS(addr, s.cfg.CertFile, s.cfg.KeyFile, s.router)
 }
 
 func (s *Server) buildRouter(sessionStore *sessions.CookieStore, webFS fs.FS) *mux.Router {

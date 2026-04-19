@@ -6,54 +6,63 @@
 - Скорость входящего/исходящего трафика
 - Количество активных клиентов (из 3X-UI API)
 
-Доступ защищён логином/паролем. Графики масштабируемы (зум, панорамирование).
+Доступ защищён логином/паролем. Графики масштабируемы (зум, панорамирование). Данные хранятся в SQLite и не теряются при перезапуске (по умолчанию 30 дней).
 
 ---
 
-## Быстрый старт
+## Быстрая установка на сервер
 
-### 1. Без Docker (прямо на сервере)
+```bash
+curl -fsSL https://raw.githubusercontent.com/tiblocko2/3X-UI-Monitor-Server/main/install.sh | sudo bash
+```
+
+Или скачать скрипт и запустить интерактивно:
+
+```bash
+wget https://raw.githubusercontent.com/tiblocko2/3X-UI-Monitor-Server/main/install.sh
+sudo bash install.sh
+```
+
+Скрипт в интерактивном режиме запросит:
+- Порт (по умолчанию 8080)
+- Использовать ли HTTPS (и пути к сертификатам)
+- URL, логин и пароль от панели 3X-UI
+- Логин и пароль для дашборда
+
+После установки сервис зарегистрируется в systemd и запустится автоматически.
+
+### Удаление
+
+```bash
+sudo bash install.sh --uninstall
+```
+
+---
+
+## Ручной запуск (без install.sh)
+
+### 1. Без Docker
 
 ```bash
 # Установить Go 1.21+
-sudo apt install golang-go  # или через официальный сайт
+sudo apt install golang-go
 
-# Клонировать / распаковать проект
 cd vpn-monitor
 
-# Установить зависимости и собрать
-make deps
-make build
+# Собрать
+go build -o vpn-monitor .
 
-# Запустить
-XUI_URL=http://localhost:2053 XUI_USER=admin XUI_PASS=admin ./vpn-monitor
+# Запустить (все переменные обязательны)
+DASH_USER=admin DASH_PASS=secret \
+XUI_URL=http://localhost:2053 XUI_USER=admin XUI_PASS=admin \
+./vpn-monitor
 ```
 
-Сервис запустится на `http://0.0.0.0:8080`.
-
----
-
-### 2. С Docker
+### 2. Docker Compose
 
 ```bash
-make docker
-
-docker run -d \
-  --name vpn-monitor \
-  --restart unless-stopped \
-  --network host \
-  -e XUI_URL=http://localhost:2053 \
-  -e XUI_USER=admin \
-  -e XUI_PASS=admin \
-  vpn-monitor
-```
-
----
-
-### 3. Docker Compose
-
-```bash
-# Отредактируйте docker-compose.yml — укажите правильные XUI_USER и XUI_PASS
+cp .env.example .env
+# Отредактируйте .env — заполните все переменные
 docker-compose up -d --build
 ```
 
@@ -61,19 +70,20 @@ docker-compose up -d --build
 
 ## Переменные окружения
 
-| Переменная | По умолчанию             | Описание                              |
-|------------|--------------------------|---------------------------------------|
-| `PORT`     | `8080`                   | Порт веб-сервера мониторинга          |
-| `XUI_URL`  | `http://localhost:2053`  | URL панели 3X-UI                      |
-| `XUI_USER` | `admin`                  | Логин 3X-UI                           |
-| `XUI_PASS` | `admin`                  | Пароль 3X-UI                          |
-
----
-
-## Авторизация в мониторе
-
-- **Логин:** `Akvil0n`
-- **Пароль:** `Perfect10nizm`
+| Переменная        | Обязательная | По умолчанию             | Описание                          |
+|-------------------|:---:|--------------------------|-----------------------------------|
+| `DASH_USER`       | ✅  | —                        | Логин для входа в дашборд         |
+| `DASH_PASS`       | ✅  | —                        | Пароль для входа в дашборд        |
+| `XUI_URL`         | ✅  | —                        | URL панели 3X-UI (с портом)       |
+| `XUI_USER`        | ✅  | —                        | Логин 3X-UI                       |
+| `XUI_PASS`        | ✅  | —                        | Пароль 3X-UI                      |
+| `PORT`            | —  | `8080`                   | Порт веб-сервера                  |
+| `HTTPS_ENABLED`   | —  | `false`                  | Включить TLS                      |
+| `TLS_CERT`        | —  | —                        | Путь к fullchain.pem              |
+| `TLS_KEY`         | —  | —                        | Путь к privkey.pem                |
+| `SESSION_SECRET`  | —  | *(авто)*                 | Секрет сессионных cookie          |
+| `DATA_DIR`        | —  | `/var/lib/vpn-monitor`   | Директория SQLite базы данных     |
+| `RETENTION_DAYS`  | —  | `30`                     | Сколько дней хранить метрики      |
 
 ---
 
@@ -82,59 +92,43 @@ docker-compose up -d --build
 1. Бэкенд на Go каждые **10 секунд** собирает:
    - CPU% через `gopsutil`
    - RAM% через `gopsutil`
-   - Скорость сети (байты/сек → MB/s) через `gopsutil`
-   - Кол-во клиентов: логинится в 3X-UI, запрашивает `/xui/API/inbounds`
+   - Скорость сети (байты/сек → Mbps) через `gopsutil`
+   - Кол-во клиентов: логинится в 3X-UI, запрашивает онлайн-список
 
-2. Данные хранятся в памяти (кольцевой буфер, последние 1440 точек ≈ 24ч)
+2. Данные хранятся в **SQLite** (`DATA_DIR/metrics.db`) и сохраняются между перезапусками
 
-3. Фронтенд каждые 10с запрашивает `/api/data` и обновляет графики
+3. Старые данные автоматически удаляются раз в час согласно `RETENTION_DAYS`
 
-4. Графики: Chart.js + chartjs-plugin-zoom
+4. Фронтенд каждые 10с запрашивает `/api/data` и обновляет графики
+
+5. Графики: Chart.js + chartjs-plugin-zoom
    - `Ctrl + колёсико` — зум по оси X
    - Перетаскивание — панорамирование
    - Кнопка «СБРОС ЗУМА» — возврат в исходный вид
-   - Кнопки периода (15 мин / 1ч / 6ч / 12ч / 24ч / Всё) — фильтрация данных
-
-5. Под каждым графиком — сводка за выбранный период: мин / ср / макс
+   - Кнопки периода (15 мин / 1ч / 6ч / 12ч / 24ч / Всё) — фильтрация
 
 ---
 
-## Настройка systemd (автозапуск без Docker)
-
-```ini
-# /etc/systemd/system/vpn-monitor.service
-[Unit]
-Description=VPN Monitor
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/vpn-monitor
-ExecStart=/opt/vpn-monitor/vpn-monitor
-Restart=always
-Environment=PORT=8080
-Environment=XUI_URL=http://localhost:2053
-Environment=XUI_USER=admin
-Environment=XUI_PASS=admin
-
-[Install]
-WantedBy=multi-user.target
-```
+## Управление сервисом
 
 ```bash
-sudo systemctl enable vpn-monitor
-sudo systemctl start vpn-monitor
+systemctl status vpn-monitor       # статус
+journalctl -u vpn-monitor -f       # логи в реальном времени
+systemctl restart vpn-monitor      # перезапуск
+systemctl stop vpn-monitor         # остановка
 ```
 
 ---
 
-## Nginx (опционально, если нужен 80/443 порт)
+## Nginx (опционально, проброс на 80/443)
 
 ```nginx
 server {
-    listen 80;
+    listen 443 ssl;
     server_name monitor.yourdomain.com;
+
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:8080;

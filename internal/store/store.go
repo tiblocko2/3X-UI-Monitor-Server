@@ -1,7 +1,16 @@
-// Package store предоставляет потокобезопасное кольцевое хранилище метрик.
+// Package store предоставляет SQLite-хранилище метрик с автоматической очисткой.
 package store
 
-import "sync"
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"time"
+
+	_ "modernc.org/sqlite"
+)
 
 // DataPoint — одна точка измерений.
 type DataPoint struct {
@@ -13,39 +22,91 @@ type DataPoint struct {
 	Clients   int     `json:"clients"`
 }
 
-// Store хранит последние maxSize точек в памяти.
+// Store хранит метрики в SQLite базе данных.
 type Store struct {
-	mu      sync.RWMutex
-	points  []DataPoint
-	maxSize int
+	db            *sql.DB
+	retentionDays int
 }
 
-// New создаёт Store с указанной максимальной ёмкостью.
-func New(maxSize int) *Store {
-	return &Store{
-		points:  make([]DataPoint, 0, maxSize),
-		maxSize: maxSize,
+// New открывает или создаёт SQLite БД в dataDir и запускает фоновую очистку.
+func New(dataDir string, retentionDays int) (*Store, error) {
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create data dir %q: %w", dataDir, err)
 	}
+
+	dbPath := filepath.Join(dataDir, "metrics.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite %q: %w", dbPath, err)
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS metrics (
+		ts      INTEGER PRIMARY KEY,
+		cpu     REAL    NOT NULL,
+		ram     REAL    NOT NULL,
+		net_in  REAL    NOT NULL,
+		net_out REAL    NOT NULL,
+		clients INTEGER NOT NULL
+	)`)
+	if err != nil {
+		return nil, fmt.Errorf("create metrics table: %w", err)
+	}
+
+	s := &Store{db: db, retentionDays: retentionDays}
+	go s.runCleanup()
+	return s, nil
 }
 
-// Add добавляет точку, вытесняя самую старую при переполнении.
+// Add записывает точку в БД.
 func (s *Store) Add(p DataPoint) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.points = append(s.points, p)
-	if len(s.points) > s.maxSize {
-		// Срезаем одну точку с начала вместо полного перевыделения.
-		s.points = s.points[1:]
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO metrics (ts, cpu, ram, net_in, net_out, clients) VALUES (?, ?, ?, ?, ?, ?)`,
+		p.Timestamp, p.CPU, p.RAM, p.NetIn, p.NetOut, p.Clients,
+	)
+	if err != nil {
+		log.Printf("[store] insert: %v", err)
 	}
 }
 
-// GetAll возвращает копию всех точек в хронологическом порядке.
+// GetAll возвращает все точки в хронологическом порядке.
 func (s *Store) GetAll() []DataPoint {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	rows, err := s.db.Query(`SELECT ts, cpu, ram, net_in, net_out, clients FROM metrics ORDER BY ts`)
+	if err != nil {
+		log.Printf("[store] query: %v", err)
+		return nil
+	}
+	defer rows.Close()
 
-	out := make([]DataPoint, len(s.points))
-	copy(out, s.points)
-	return out
+	var points []DataPoint
+	for rows.Next() {
+		var p DataPoint
+		if err := rows.Scan(&p.Timestamp, &p.CPU, &p.RAM, &p.NetIn, &p.NetOut, &p.Clients); err != nil {
+			log.Printf("[store] scan: %v", err)
+			continue
+		}
+		points = append(points, p)
+	}
+	return points
+}
+
+func (s *Store) runCleanup() {
+	// Первая очистка сразу при старте, затем раз в час.
+	s.cleanup()
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.cleanup()
+	}
+}
+
+func (s *Store) cleanup() {
+	cutoff := time.Now().AddDate(0, 0, -s.retentionDays).UnixMilli()
+	res, err := s.db.Exec(`DELETE FROM metrics WHERE ts < ?`, cutoff)
+	if err != nil {
+		log.Printf("[store] cleanup: %v", err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("[store] cleaned up %d old data points", n)
+	}
 }

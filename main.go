@@ -18,8 +18,11 @@ var webFS embed.FS
 func main() {
 	cfg := config.Load()
 
-	// Хранилище метрик.
-	dataStore := store.New(cfg.Collector.MaxDataPoints)
+	// Хранилище метрик на основе SQLite.
+	dataStore, err := store.New(cfg.DataDir, cfg.RetentionDays)
+	if err != nil {
+		log.Fatalf("[main] failed to open store: %v", err)
+	}
 
 	// Клиент к 3X-UI.
 	xuiClient := xui.New(cfg.XUI)

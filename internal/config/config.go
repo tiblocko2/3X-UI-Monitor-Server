@@ -1,7 +1,12 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"log"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -11,6 +16,7 @@ type App struct {
 	Username      string
 	Password      string
 	SessionSecret string
+	HTTPS         bool
 	CertFile      string
 	KeyFile       string
 }
@@ -24,38 +30,61 @@ type XUI struct {
 
 // Collector — параметры сбора метрик.
 type Collector struct {
-	Interval      time.Duration
-	MaxDataPoints int
+	Interval time.Duration
 }
 
 // Config — корневая конфигурация приложения.
 type Config struct {
-	App       App
-	XUI       XUI
-	Collector Collector
+	App           App
+	XUI           XUI
+	Collector     Collector
+	DataDir       string
+	RetentionDays int
 }
 
-// Load читает конфигурацию из переменных окружения с fallback на дефолты.
+// Load читает конфигурацию из переменных окружения и завершает процесс при ошибке.
 func Load() Config {
-	return Config{
+	secret := env("SESSION_SECRET", "")
+	if secret == "" {
+		secret = generateSecret()
+	}
+
+	httpsEnabled := env("HTTPS_ENABLED", "false") == "true"
+
+	retentionDays := 30
+	if v := env("RETENTION_DAYS", ""); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			retentionDays = n
+		}
+	}
+
+	cfg := Config{
 		App: App{
 			Port:          env("PORT", "8080"),
-			Username:      "Akvil0n",
-			Password:      "Perfect10nizm",
-			SessionSecret: env("SESSION_SECRET", "super-secret-key-change-me-pls"),
-			CertFile:      env("TLS_CERT", "/root/cert/akvilon.nemesh-vpn.ru/fullchain.pem"),
-			KeyFile:       env("TLS_KEY", "/root/cert/akvilon.nemesh-vpn.ru/privkey.pem"),
+			Username:      requireEnv("DASH_USER"),
+			Password:      requireEnv("DASH_PASS"),
+			SessionSecret: secret,
+			HTTPS:         httpsEnabled,
+			CertFile:      env("TLS_CERT", ""),
+			KeyFile:       env("TLS_KEY", ""),
 		},
 		XUI: XUI{
-			BaseURL:  env("XUI_URL", "https://akvilon.nemesh-vpn.ru:808"),
-			Username: env("XUI_USER", "Akvil0n"),
-			Password: env("XUI_PASS", "Perfect10nizm"),
+			BaseURL:  requireEnv("XUI_URL"),
+			Username: requireEnv("XUI_USER"),
+			Password: requireEnv("XUI_PASS"),
 		},
 		Collector: Collector{
-			Interval:      10 * time.Second,
-			MaxDataPoints: 1440, // 24ч при интервале 60с
+			Interval: 10 * time.Second,
 		},
+		DataDir:       env("DATA_DIR", "/var/lib/vpn-monitor"),
+		RetentionDays: retentionDays,
 	}
+
+	if httpsEnabled && (cfg.App.CertFile == "" || cfg.App.KeyFile == "") {
+		log.Fatal("[config] HTTPS_ENABLED=true requires TLS_CERT and TLS_KEY to be set")
+	}
+
+	return cfg
 }
 
 func env(key, defaultVal string) string {
@@ -63,4 +92,20 @@ func env(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+func requireEnv(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		log.Fatalf("[config] required environment variable %s is not set", key)
+	}
+	return v
+}
+
+func generateSecret() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("failed to generate session secret: %v", err))
+	}
+	return hex.EncodeToString(b)
 }
