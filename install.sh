@@ -99,7 +99,7 @@ echo -e "${CYAN}╚════════════════════�
 echo
 
 info "Шаг 1: GitHub репозиторий"
-prompt GITHUB_REPO "GitHub репозиторий (owner/repo)" "your-username/vpn-monitor"
+prompt GITHUB_REPO "GitHub репозиторий (owner/repo)" "tiblocko2/3X-UI-Monitor-Server"
 
 echo
 info "Шаг 2: Сетевые настройки"
