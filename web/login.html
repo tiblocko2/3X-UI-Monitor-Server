@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPN Monitor — Вход</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #070b0f;
+    --surface: #0d1520;
+    --border: #1a2d45;
+    --accent: #00d4ff;
+    --accent2: #00ff9f;
+    --danger: #ff3366;
+    --text: #c8e0f0;
+    --muted: #4a6a8a;
+    --glow: rgba(0, 212, 255, 0.15);
+  }
+
+  body {
+    font-family: 'Rajdhani', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridShift 20s linear infinite;
+  }
+
+  @keyframes gridShift {
+    from { background-position: 0 0; }
+    to { background-position: 40px 40px; }
+  }
+
+  /* Glowing orbs */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 50%, rgba(0,212,255,0.04) 0%, transparent 70%),
+      radial-gradient(ellipse 400px 600px at 80% 30%, rgba(0,255,159,0.03) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .login-wrap {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+  }
+
+  .login-logo {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .login-logo .shield {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    position: relative;
+  }
+
+  .login-logo .shield svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 12px var(--accent));
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { filter: drop-shadow(0 0 12px var(--accent)); }
+    50% { filter: drop-shadow(0 0 24px var(--accent)) drop-shadow(0 0 48px rgba(0,212,255,0.4)); }
+  }
+
+  .login-logo h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .login-logo p {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 36px;
+    position: relative;
+    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  }
+
+  .login-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scanLine 3s linear infinite;
+  }
+
+  @keyframes scanLine {
+    0% { transform: translateX(-100%); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateX(100%); opacity: 0; }
+  }
+
+  .corner-accent {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+  }
+
+  .field-group {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  input {
+    width: 100%;
+    background: rgba(0,212,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    padding: 12px 16px;
+    outline: none;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.08);
+    box-shadow: 0 0 0 1px var(--accent), inset 0 0 20px rgba(0,212,255,0.05);
+  }
+
+  .error-msg {
+    background: rgba(255,51,102,0.1);
+    border: 1px solid rgba(255,51,102,0.3);
+    color: var(--danger);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+  }
+
+  .btn-login {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 14px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    margin-top: 8px;
+  }
+
+  .btn-login::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+    z-index: -1;
+  }
+
+  .btn-login:hover {
+    color: var(--bg);
+    box-shadow: 0 0 20px rgba(0,212,255,0.4);
+  }
+
+  .btn-login:hover::before {
+    transform: translateX(0);
+  }
+
+  .status-bar {
+    margin-top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent2);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+</style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-logo">
+    <div class="shield">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M32 4L8 14V34C8 47 18.5 57.5 32 60C45.5 57.5 56 47 56 34V14L32 4Z" stroke="#00d4ff" stroke-width="1.5" fill="rgba(0,212,255,0.06)"/>
+        <path d="M32 12L14 20V34C14 43.5 22 51 32 53.5C42 51 50 43.5 50 34V20L32 12Z" stroke="#00d4ff" stroke-width="1" stroke-dasharray="2 2" fill="rgba(0,212,255,0.04)"/>
+        <circle cx="32" cy="30" r="8" stroke="#00ff9f" stroke-width="1.5" fill="rgba(0,255,159,0.08)"/>
+        <path d="M32 22V30L38 36" stroke="#00ff9f" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="32" cy="30" r="2" fill="#00ff9f"/>
+      </svg>
+    </div>
+    <h1>VPN Monitor</h1>
+    <p>// SECURE ACCESS REQUIRED //</p>
+  </div>
+
+  <div class="login-card">
+    <div class="corner-accent"></div>
+
+    <!-- {{if .Error}} -->
+    <!-- <div class="error-msg">⚠ ОШИБКА: Неверный логин или пароль</div> -->
+    <!-- {{end}} -->
+
+    <form method="POST" action="/login">
+      <div class="field-group">
+        <label>Идентификатор</label>
+        <input type="text" name="username" autocomplete="username" autofocus placeholder="username">
+      </div>
+      <div class="field-group">
+        <label>Ключ доступа</label>
+        <input type="password" name="password" autocomplete="current-password" placeholder="••••••••••••">
+      </div>
+      <button type="submit" class="btn-login">Войти</button>
+    </form>
+
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      <span>СИСТЕМА АКТИВНА · ШИФРОВАНИЕ AES-256</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Check error param
+  if (location.search.includes('err=1')) {
+    document.querySelector('.login-card').innerHTML =
+      '<div class="corner-accent"></div><div class="error-msg">⚠ ОШИБКА: Неверный логин или пароль</div>' +
+      document.querySelector('.login-card').innerHTML.replace('<div class="corner-accent"></div>', '');
+  }
+</script>
+</body>
+</html>

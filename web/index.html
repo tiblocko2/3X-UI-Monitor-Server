@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPN Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  --bg: #070b0f;
+  --surface: #0d1520;
+  --surface2: #111d2e;
+  --border: #1a2d45;
+  --accent: #00d4ff;
+  --accent2: #00ff9f;
+  --accent3: #ff9f00;
+  --accent4: #cc44ff;
+  --danger: #ff3366;
+  --text: #c8e0f0;
+  --muted: #4a6a8a;
+  --glow: rgba(0,212,255,0.15);
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Grid bg */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Header ────────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(7,11,15,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 60px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo-mark {
+  width: 32px; height: 32px;
+  flex-shrink: 0;
+}
+
+.logo-mark svg { width: 100%; height: 100%; filter: drop-shadow(0 0 6px var(--accent)); }
+
+.header-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.header-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--accent2);
+  letter-spacing: 1.5px;
+}
+
+.live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent2);
+  box-shadow: 0 0 8px var(--accent2);
+  animation: liveBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes liveBlink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+.last-update {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.btn-logout {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-logout:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  box-shadow: 0 0 10px rgba(255,51,102,0.2);
+}
+
+/* ── Main Layout ───────────────────────────── */
+main {
+  position: relative;
+  z-index: 1;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+/* ── Range Selector ────────────────────────── */
+.range-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.range-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+.range-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.range-btn:hover, .range-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0,212,255,0.08);
+  box-shadow: 0 0 8px rgba(0,212,255,0.2);
+}
+
+.range-btn.active {
+  background: rgba(0,212,255,0.12);
+}
+
+.range-hint {
+  margin-left: auto;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* ── Stats Summary Row ─────────────────────── */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 900px) {
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+  .summary-grid { grid-template-columns: 1fr; }
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.stat-card.cpu::after { background: var(--accent); }
+.stat-card.ram::after { background: var(--accent2); }
+.stat-card.net::after { background: var(--accent3); }
+.stat-card.cli::after { background: var(--accent4); }
+
+.stat-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.stat-value {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -1px;
+  margin-bottom: 8px;
+}
+
+.stat-card.cpu .stat-value { color: var(--accent); }
+.stat-card.ram .stat-value { color: var(--accent2); }
+.stat-card.net .stat-value { color: var(--accent3); }
+.stat-card.cli .stat-value { color: var(--accent4); }
+
+.stat-unit {
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.stat-trend {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* ── Chart Section ─────────────────────────── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 1100px) {
+  .charts-grid { grid-template-columns: 1fr; }
+}
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.chart-card.cpu::before { background: linear-gradient(90deg, var(--accent), transparent); }
+.chart-card.ram::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+.chart-card.net::before { background: linear-gradient(90deg, var(--accent3), transparent); }
+.chart-card.cli::before { background: linear-gradient(90deg, var(--accent4), transparent); }
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.chart-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-icon {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.chart-card.cpu .chart-icon { background: rgba(0,212,255,0.12); color: var(--accent); }
+.chart-card.ram .chart-icon { background: rgba(0,255,159,0.12); color: var(--accent2); }
+.chart-card.net .chart-icon { background: rgba(255,159,0,0.12); color: var(--accent3); }
+.chart-card.cli .chart-icon { background: rgba(204,68,255,0.12); color: var(--accent4); }
+
+.chart-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.chart-reset {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chart-reset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chart-wrap {
+  height: 220px;
+  margin-bottom: 16px;
+}
+
+/* ── Chart Summary ─────────────────────────── */
+.chart-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.sum-item {
+  text-align: center;
+}
+
+.sum-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.sum-val {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.chart-card.cpu .sum-val { color: var(--accent); }
+.chart-card.ram .sum-val { color: var(--accent2); }
+.chart-card.net .sum-val { color: var(--accent3); }
+.chart-card.cli .sum-val { color: var(--accent4); }
+
+/* ── Footer ────────────────────────────────── */
+footer {
+  position: relative; z-index: 1;
+  border-top: 1px solid var(--border);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 32px;
+}
+
+.footer-info {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+}
+
+.footer-accent {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+/* ── Loader ────────────────────────────────── */
+#loader {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.5s;
+}
+
+.loader-ring {
+  width: 60px; height: 60px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loader-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 3px;
+  animation: loadFlicker 1s ease-in-out infinite;
+}
+
+@keyframes loadFlicker { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">ЗАГРУЗКА ДАННЫХ</div>
+</div>
+
+<header>
+  <div class="header-left">
+    <div class="logo-mark">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 2L4 7V17C4 23.5 9.25 28.75 16 30C22.75 28.75 28 23.5 28 17V7L16 2Z" stroke="#00d4ff" stroke-width="1" fill="rgba(0,212,255,0.06)"/>
+        <circle cx="16" cy="15" r="4" stroke="#00ff9f" stroke-width="1" fill="rgba(0,255,159,0.08)"/>
+        <circle cx="16" cy="15" r="1.5" fill="#00ff9f"/>
+      </svg>
+    </div>
+    <div>
+      <div class="header-title">VPN Monitor</div>
+      <div class="header-sub">3X-UI · REAL-TIME DASHBOARD</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      <span>LIVE</span>
+    </div>
+    <div class="last-update" id="lastUpdate">—</div>
+    <a href="/logout" class="btn-logout">⏻ ВЫХОД</a>
+  </div>
+</header>
+
+<main>
+  <!-- Range selector -->
+  <div class="range-bar">
+    <span class="range-label">Период:</span>
+    <button class="range-btn active" data-min="15">15 МИН</button>
+    <button class="range-btn" data-min="60">1 ЧАС</button>
+    <button class="range-btn" data-min="360">6 ЧАС</button>
+    <button class="range-btn" data-min="720">12 ЧАС</button>
+    <button class="range-btn" data-min="1440">24 ЧАС</button>
+    <button class="range-btn" data-min="0">ВСЁ</button>
+    <span class="range-hint">🔍 Зажмите Ctrl + прокрутка для зума · Перетащите для навигации</span>
+  </div>
+
+  <!-- Live stat cards -->
+  <div class="summary-grid">
+    <div class="stat-card cpu">
+      <div class="stat-label">ЦП (CPU)</div>
+      <div class="stat-value" id="nowCpu">—<span class="stat-unit">%</span></div>
+      <div class="stat-trend" id="trendCpu">Нет данных</div>
+    </div>
+    <div class="stat-card ram">
+      <div class="stat-label">ОЗУ (RAM)</div>
+      <div class="stat-value" id="nowRam">—<span class="stat-unit">%</span></div>
+      <div class="stat-trend" id="trendRam">Нет данных</div>
+    </div>
+    <div class="stat-card net">
+      <div class="stat-label">Сеть (вх / исх)</div>
+      <div class="stat-value" id="nowNet">—<span class="stat-unit">MB/s</span></div>
+      <div class="stat-trend" id="trendNet">Нет данных</div>
+    </div>
+    <div class="stat-card cli">
+      <div class="stat-label">Клиентов</div>
+      <div class="stat-value" id="nowCli">—</div>
+      <div class="stat-trend" id="trendCli">Нет данных</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <!-- CPU -->
+    <div class="chart-card cpu">
+      <div class="chart-header">
+        <div class="chart-title">
+          <div class="chart-icon">⚡</div>
+          <div class="chart-name">ЦП</div>
+        </div>
+        <button class="chart-reset" onclick="resetZoom('cpu')">СБРОС ЗУМА</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chartCpu"></canvas></div>
+      <div class="chart-summary">
+        <div class="sum-item"><div class="sum-label">Минимум</div><div class="sum-val" id="minCpu">—</div></div>
+        <div class="sum-item"><div class="sum-label">Среднее</div><div class="sum-val" id="avgCpu">—</div></div>
+        <div class="sum-item"><div class="sum-label">Максимум</div><div class="sum-val" id="maxCpu">—</div></div>
+      </div>
+    </div>
+
+    <!-- RAM -->
+    <div class="chart-card ram">
+      <div class="chart-header">
+        <div class="chart-title">
+          <div class="chart-icon">💾</div>
+          <div class="chart-name">ОЗУ</div>
+        </div>
+        <button class="chart-reset" onclick="resetZoom('ram')">СБРОС ЗУМА</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chartRam"></canvas></div>
+      <div class="chart-summary">
+        <div class="sum-item"><div class="sum-label">Минимум</div><div class="sum-val" id="minRam">—</div></div>
+        <div class="sum-item"><div class="sum-label">Среднее</div><div class="sum-val" id="avgRam">—</div></div>
+        <div class="sum-item"><div class="sum-label">Максимум</div><div class="sum-val" id="maxRam">—</div></div>
+      </div>
+    </div>
+
+    <!-- Network -->
+    <div class="chart-card net">
+      <div class="chart-header">
+        <div class="chart-title">
+          <div class="chart-icon">📡</div>
+          <div class="chart-name">Сеть</div>
+        </div>
+        <button class="chart-reset" onclick="resetZoom('net')">СБРОС ЗУМА</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chartNet"></canvas></div>
+      <div class="chart-summary">
+        <div class="sum-item"><div class="sum-label">Входящих мин</div><div class="sum-val" id="minNet">—</div></div>
+        <div class="sum-item"><div class="sum-label">Вх. среднее</div><div class="sum-val" id="avgNet">—</div></div>
+        <div class="sum-item"><div class="sum-label">Вх. максимум</div><div class="sum-val" id="maxNet">—</div></div>
+      </div>
+    </div>
+
+    <!-- Clients -->
+    <div class="chart-card cli">
+      <div class="chart-header">
+        <div class="chart-title">
+          <div class="chart-icon">👥</div>
+          <div class="chart-name">Клиенты</div>
+        </div>
+        <button class="chart-reset" onclick="resetZoom('cli')">СБРОС ЗУМА</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chartCli"></canvas></div>
+      <div class="chart-summary">
+        <div class="sum-item"><div class="sum-label">Минимум</div><div class="sum-val" id="minCli">—</div></div>
+        <div class="sum-item"><div class="sum-label">Среднее</div><div class="sum-val" id="avgCli">—</div></div>
+        <div class="sum-item"><div class="sum-label">Максимум</div><div class="sum-val" id="maxCli">—</div></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-info">3X-UI VPN MONITOR · GOLANG BACKEND</div>
+  <div class="footer-accent" id="footerPoints">— ТОЧЕК</div>
+</footer>
+
+<script>
+// ── State ───────────────────────────────────────────────────────────────────
+let allData = [];
+let activeMinutes = 15;
+let charts = {};
+
+// ── Chart factory ───────────────────────────────────────────────────────────
+function makeChart(id, color, label, unit, datasets) {
+  const ctx = document.getElementById(id).getContext('2d');
+
+  const ds = datasets || [{
+    label,
+    data: [],
+    borderColor: color,
+    backgroundColor: color + '18',
+    borderWidth: 2,
+    fill: true,
+    tension: 0.4,
+    pointRadius: 0,
+    pointHitRadius: 10,
+  }];
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: ds },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: datasets ? true : false,
+          labels: {
+            color: '#4a6a8a',
+            font: { family: 'Share Tech Mono', size: 10 },
+            boxWidth: 12,
+            padding: 12,
+          }
+        },
+        tooltip: {
+          backgroundColor: '#0d1520',
+          borderColor: '#1a2d45',
+          borderWidth: 1,
+          titleColor: '#4a6a8a',
+          bodyColor: '#c8e0f0',
+          titleFont: { family: 'Share Tech Mono', size: 10 },
+          bodyFont: { family: 'Share Tech Mono', size: 12 },
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}${unit}`
+          }
+        },
+        zoom: {
+          zoom: {
+            wheel: { enabled: true, modifierKey: 'ctrl' },
+            pinch: { enabled: true },
+            mode: 'x',
+          },
+          pan: { enabled: true, mode: 'x' },
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#4a6a8a',
+            font: { family: 'Share Tech Mono', size: 9 },
+            maxRotation: 0,
+            maxTicksLimit: 8,
+          },
+          grid: { color: 'rgba(26,45,69,0.6)', drawBorder: false },
+          border: { color: '#1a2d45' }
+        },
+        y: {
+          ticks: {
+            color: '#4a6a8a',
+            font: { family: 'Share Tech Mono', size: 9 },
+            callback: (v) => v.toFixed(1) + unit,
+          },
+          grid: { color: 'rgba(26,45,69,0.6)', drawBorder: false },
+          border: { color: '#1a2d45' }
+        }
+      }
+    }
+  });
+  return chart;
+}
+
+// ── Init charts ─────────────────────────────────────────────────────────────
+function initCharts() {
+  charts.cpu = makeChart('chartCpu', '#00d4ff', 'CPU', '%');
+  charts.ram = makeChart('chartRam', '#00ff9f', 'RAM', '%');
+  charts.net = makeChart('chartNet', '#ff9f00', '', ' MB/s', [
+    { label: 'Входящий', data: [], borderColor: '#ff9f00', backgroundColor: '#ff9f0018', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0 },
+    { label: 'Исходящий', data: [], borderColor: '#ff44aa', backgroundColor: '#ff44aa18', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0 },
+  ]);
+  charts.cli = makeChart('chartCli', '#cc44ff', 'Клиентов', '');
+}
+
+// ── Filter data by range ─────────────────────────────────────────────────────
+function filterData(minutes) {
+  if (!minutes || minutes === 0) return allData;
+  const cutoff = Date.now() - minutes * 60 * 1000;
+  return allData.filter(d => d.ts >= cutoff);
+}
+
+// ── Format time label ────────────────────────────────────────────────────────
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+function stats(arr) {
+  if (!arr.length) return { min: 0, avg: 0, max: 0 };
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+  return { min, avg, max };
+}
+
+function fmt(v, unit='%', dec=1) {
+  if (v === undefined || v === null || isNaN(v)) return '—';
+  return v.toFixed(dec) + unit;
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function render() {
+  const data = filterData(activeMinutes);
+  if (!data.length) return;
+
+  const labels = data.map(d => fmtTime(d.ts));
+
+  // CPU
+  charts.cpu.data.labels = labels;
+  charts.cpu.data.datasets[0].data = data.map(d => d.cpu);
+  charts.cpu.update();
+
+  // RAM
+  charts.ram.data.labels = labels;
+  charts.ram.data.datasets[0].data = data.map(d => d.ram);
+  charts.ram.update();
+
+  // Net
+  charts.net.data.labels = labels;
+  charts.net.data.datasets[0].data = data.map(d => d.netIn);
+  charts.net.data.datasets[1].data = data.map(d => d.netOut);
+  charts.net.update();
+
+  // Clients
+  charts.cli.data.labels = labels;
+  charts.cli.data.datasets[0].data = data.map(d => d.clients);
+  charts.cli.update();
+
+  // Summaries
+  const cpuS = stats(data.map(d => d.cpu));
+  const ramS = stats(data.map(d => d.ram));
+  const netS = stats(data.map(d => d.netIn));
+  const cliS = stats(data.map(d => d.clients));
+
+  document.getElementById('minCpu').textContent = fmt(cpuS.min);
+  document.getElementById('avgCpu').textContent = fmt(cpuS.avg);
+  document.getElementById('maxCpu').textContent = fmt(cpuS.max);
+
+  document.getElementById('minRam').textContent = fmt(ramS.min);
+  document.getElementById('avgRam').textContent = fmt(ramS.avg);
+  document.getElementById('maxRam').textContent = fmt(ramS.max);
+
+  document.getElementById('minNet').textContent = fmt(netS.min, ' MB/s', 2);
+  document.getElementById('avgNet').textContent = fmt(netS.avg, ' MB/s', 2);
+  document.getElementById('maxNet').textContent = fmt(netS.max, ' MB/s', 2);
+
+  document.getElementById('minCli').textContent = cliS.min < 0 ? '—' : Math.round(cliS.min).toString();
+  document.getElementById('avgCli').textContent = cliS.avg < 0 ? '—' : Math.round(cliS.avg).toString();
+  document.getElementById('maxCli').textContent = cliS.max < 0 ? '—' : Math.round(cliS.max).toString();
+
+  // Live cards (latest)
+  const last = data[data.length - 1];
+  document.getElementById('nowCpu').innerHTML = last.cpu.toFixed(1) + '<span class="stat-unit">%</span>';
+  document.getElementById('nowRam').innerHTML = last.ram.toFixed(1) + '<span class="stat-unit">%</span>';
+  document.getElementById('nowNet').innerHTML = last.netIn.toFixed(2) + '<span class="stat-unit"> MB/s</span>';
+  document.getElementById('nowCli').textContent = last.clients >= 0 ? last.clients : '—';
+
+  document.getElementById('trendCpu').textContent = `Ср: ${cpuS.avg.toFixed(1)}% · Макс: ${cpuS.max.toFixed(1)}%`;
+  document.getElementById('trendRam').textContent = `Ср: ${ramS.avg.toFixed(1)}% · Макс: ${ramS.max.toFixed(1)}%`;
+  document.getElementById('trendNet').textContent = `Вых: ${last.netOut.toFixed(2)} MB/s`;
+  document.getElementById('trendCli').textContent = last.clients >= 0 ? `Всего активных клиентов` : 'Нет связи с 3X-UI';
+
+  // Footer
+  document.getElementById('footerPoints').textContent = `${data.length} ТОЧЕК · ${allData.length} ВСЕГО`;
+  document.getElementById('lastUpdate').textContent = 'ОБНОВЛЕНО ' + new Date().toLocaleTimeString('ru-RU');
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+async function fetchData() {
+  try {
+    const res = await fetch('/api/data');
+    if (!res.ok) return;
+    allData = await res.json();
+    render();
+  } catch (e) {
+    console.error('Fetch error:', e);
+  }
+}
+
+// ── Zoom reset ─────────────────────────────────────────────────────────────
+function resetZoom(key) {
+  charts[key]?.resetZoom();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+
+  // Range buttons
+  document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeMinutes = parseInt(btn.dataset.min) || 0;
+      render();
+    });
+  });
+
+  // Fetch immediately then every 10s
+  fetchData().then(() => {
+    document.getElementById('loader').style.opacity = '0';
+    setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
+  });
+
+  setInterval(fetchData, 10000);
+});
+</script>
+</body>
+</html>

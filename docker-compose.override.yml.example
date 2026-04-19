@@ -1,0 +1,20 @@
+# Скопируйте в docker-compose.override.yml и заполните своими значениями:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# docker-compose автоматически подхватывает override-файл при запуске.
+# Файл docker-compose.override.yml добавлен в .gitignore.
+
+version: '3.8'
+
+services:
+  vpn-monitor:
+    environment:
+      - PORT=8080
+      - APP_USERNAME=your_dashboard_login
+      - APP_PASSWORD=your_dashboard_password
+      - SESSION_SECRET=replace_with_random_32char_string
+      - TLS_CERT=/root/cert/your-domain.com/fullchain.pem
+      - TLS_KEY=/root/cert/your-domain.com/privkey.pem
+      - XUI_URL=https://your-domain.com:808
+      - XUI_USER=your_3xui_login
+      - XUI_PASS=your_3xui_password
